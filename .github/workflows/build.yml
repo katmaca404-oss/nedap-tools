@@ -19,11 +19,15 @@ jobs:
       with:
         python-version: '3.11'
 
-    - name: Bağımlılıkları Yükle
+    - name: Bagimliliklari Yukle
       run: |
         python -m pip install --upgrade pip
         if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
-    - name: Python Sözdizimi Kontrolü (Derleme)
+    - name: Sozdizimi Kontrolu
       run: |
         python -m compileall .
+
+    - name: Testleri Calistir
+      run: |
+        pytest
