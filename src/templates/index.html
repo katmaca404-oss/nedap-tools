@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Nedap AEOS Canlı İzleme</title>
+  <title>Nedap AEOS Monitor & Calculator</title>
   <style>
     :root {
       --nedap-orange: #FF5F00;
@@ -14,18 +14,28 @@
       --border-color: #E2E8F0;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: Segoe UI, sans-serif; }
-    body { background-color: var(--bg-light); display: flex; height: 100vh; }
-    .sidebar { width: 240px; background-color: var(--nedap-dark-blue); color: #fff; padding: 20px; }
-    .brand { font-size: 18px; font-weight: bold; margin-bottom: 30px; }
+    body { background-color: var(--bg-light); display: flex; height: 100vh; overflow: hidden; }
+    .sidebar { width: 250px; background-color: var(--nedap-dark-blue); color: #fff; padding: 20px; display: flex; flex-direction: column; }
+    .brand { font-size: 18px; font-weight: bold; margin-bottom: 25px; }
     .brand span { color: var(--nedap-orange); }
-    .main { flex: 1; display: flex; flex-direction: column; }
-    header { background: #fff; padding: 16px 24px; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; }
-    .content { padding: 24px; overflow-y: auto; }
+    .main { flex: 1; display: flex; flex-direction: column; overflow-y: auto; }
+    header { background: #fff; padding: 16px 24px; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; }
+    .content { padding: 24px; display: flex; flex-direction: column; gap: 20px; }
     .badge { padding: 4px 10px; border-radius: 12px; font-size: 12px; font-weight: bold; }
     .badge-ok { background: #DCFCE7; color: #166534; }
     .badge-warn { background: #FFEDD5; color: #9A3412; }
+    .card { background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 8px; padding: 20px; }
+    .card-title { font-size: 15px; font-weight: 700; color: var(--nedap-dark-blue); margin-bottom: 15px; border-bottom: 2px solid var(--nedap-orange); padding-bottom: 6px; display: inline-block; }
+    .form-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 15px; }
+    select, input, button { padding: 9px 14px; border-radius: 6px; border: 1px solid var(--border-color); font-size: 14px; outline: none; }
+    button { background-color: var(--nedap-orange); color: #fff; border: none; font-weight: 600; cursor: pointer; }
+    button:hover { opacity: 0.9; }
+    .results-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-top: 15px; }
+    .result-box { background: #F8FAFC; border: 1px solid var(--border-color); padding: 12px; border-radius: 6px; }
+    .result-box .label { font-size: 11px; color: #64748B; font-weight: 600; text-transform: uppercase; }
+    .result-box .val { font-size: 15px; font-weight: bold; color: var(--nedap-dark-blue); margin-top: 4px; font-family: monospace; }
     table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 8px; overflow: hidden; border: 1px solid var(--border-color); }
-    th, td { padding: 12px 16px; text-align: left; border-bottom: 1px solid var(--border-color); font-size: 14px; }
+    th, td { padding: 10px 14px; text-align: left; border-bottom: 1px solid var(--border-color); font-size: 13px; }
     th { background: #F8FAFC; color: #64748B; font-weight: 600; }
     .new-row { animation: highlight 1.5s ease-out; }
     @keyframes highlight { from { background-color: #FFF7ED; } to { background-color: #FFFFFF; } }
@@ -33,63 +43,118 @@
 </head>
 <body>
   <div class="sidebar">
-    <div class="brand">NEDAP <span>MONITOR</span></div>
-    <p style="color: #94A3B8; font-size: 13px;">Canlı Geçiş Paneli</p>
+    <div class="brand">NEDAP <span>TOOLS</span></div>
+    <p style="color: #94A3B8; font-size: 13px;">AEOS Entegrasyon & Hesaplama</p>
   </div>
+
   <div class="main">
     <header>
-      <h3>Canlı Olay ve Kart Bildirimleri</h3>
-      <span id="conn-status" class="badge badge-warn">Bağlanıyor...</span>
+      <h3>AEOS Identifier & Olay Masasi</h3>
+      <span id="conn-status" class="badge badge-warn">Baglaniyor...</span>
     </header>
+
     <div class="content">
-      <table>
-        <thead>
-          <tr>
-            <th>Zaman</th>
-            <th>Nokta / Kapı</th>
-            <th>Kart (CSN / Hex)</th>
-            <th>Olay Durumu</th>
-          </tr>
-        </thead>
-        <tbody id="events-table-body"></tbody>
-      </table>
+      <!-- Hesaplama Karti -->
+      <div class="card">
+        <div class="card-title">Nedap AEOS Identifier Type Hesaplama</div>
+        <div class="form-row">
+          <select id="calcType" onchange="toggleInputs()">
+            <option value="hex">CSN / Hex (UID)</option>
+            <option value="dec">Decimal No</option>
+            <option value="wiegand">Wiegand 26-bit (FC + Card)</option>
+          </select>
+          <input type="text" id="val1" placeholder="Orn: 3C4A5B12" style="min-width: 220px;">
+          <input type="text" id="val2" placeholder="Card No" style="display: none; width: 120px;">
+          <button onclick="calculateCard()">Hesapla</button>
+        </div>
+
+        <div id="calc-results" class="results-grid" style="display: none;">
+          <div class="result-box"><div class="label">Hex (MSB / Duz)</div><div class="val" id="res-hex-be">-</div></div>
+          <div class="result-box"><div class="label">Hex (LSB / Ters Hex)</div><div class="val" id="res-hex-le">-</div></div>
+          <div class="result-box"><div class="label">Decimal (MSB)</div><div class="val" id="res-dec-be">-</div></div>
+          <div class="result-box"><div class="label">Decimal (LSB / Ters Dec)</div><div class="val" id="res-dec-le">-</div></div>
+          <div class="result-box"><div class="label">Wiegand 26 Olasiligi</div><div class="val" id="res-wiegand">-</div></div>
+        </div>
+      </div>
+
+      <!-- Canli Event Karti -->
+      <div class="card" style="padding: 0; overflow: hidden;">
+        <div style="padding: 16px 20px; border-bottom: 1px solid var(--border-color); font-weight: 700; color: var(--nedap-dark-blue);">
+          Canli Gecis Kayitlari
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Zaman</th>
+              <th>Nokta / Kapi</th>
+              <th>Kart (CSN / Hex)</th>
+              <th>Olay Durumu</th>
+            </tr>
+          </thead>
+          <tbody id="events-table-body"></tbody>
+        </table>
+      </div>
     </div>
   </div>
 
   <script>
-    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const wsUrl = ${protocol}///ws/events;
-    const socket = new WebSocket(wsUrl);
+    function toggleInputs() {
+      const type = document.getElementById("calcType").value;
+      const val1 = document.getElementById("val1");
+      const val2 = document.getElementById("val2");
+      if (type === "wiegand") {
+        val1.placeholder = "Facility Code (FC)";
+        val2.style.display = "inline-block";
+      } else {
+        val1.placeholder = type === "hex" ? "Orn: 3C4A5B12" : "Orn: 1011505938";
+        val2.style.display = "none";
+      }
+    }
+
+    async function calculateCard() {
+      const type = document.getElementById("calcType").value;
+      const val1 = document.getElementById("val1").value.trim();
+      const val2 = document.getElementById("val2").value.trim();
+      if(!val1) return;
+
+      const res = await fetch("/api/calculate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ calc_type: type, value: val1, extra_val: val2 })
+      });
+      const data = await res.json();
+      if(data.error) {
+        alert("Hata: " + data.error);
+        return;
+      }
+
+      document.getElementById("res-hex-be").innerText = data.hex_be;
+      document.getElementById("res-hex-le").innerText = data.hex_le;
+      document.getElementById("res-dec-be").innerText = data.dec_be;
+      document.getElementById("res-dec-le").innerText = data.dec_le;
+      document.getElementById("res-wiegand").innerText = data.wiegand26 || "Uyumsuz";
+      document.getElementById("calc-results").style.display = "grid";
+    }
+
+    const ws = new WebSocket(${window.location.protocol === "https:" ? "wss:" : "ws:"}///ws/events);
     const statusBadge = document.getElementById("conn-status");
     const tableBody = document.getElementById("events-table-body");
 
-    socket.onopen = () => {
-      statusBadge.textContent = "● Bağlantı Aktif";
-      statusBadge.className = "badge badge-ok";
-    };
-
-    socket.onmessage = (event) => {
-      const data = JSON.parse(event.data);
+    ws.onopen = () => { statusBadge.textContent = "● Baglanti Aktif"; statusBadge.className = "badge badge-ok"; };
+    ws.onclose = () => { statusBadge.textContent = "● Baglanti Kesildi"; statusBadge.className = "badge badge-warn"; };
+    ws.onmessage = (e) => {
+      const data = JSON.parse(e.data);
       const row = document.createElement("tr");
       row.className = "new-row";
-
-      const isAlert = data.status.includes("Yetkisiz") || data.status.includes("Zorlama");
-      const statusColor = isAlert ? "var(--nedap-orange)" : "#10B981";
-
+      const isAlert = data.status.includes("Zorlama") || data.status.includes("Tanimsiz");
       row.innerHTML = 
         <td></td>
         <td><strong></strong></td>
         <td><code></code></td>
         <td style="color: ; font-weight: 600;"></td>
       ;
-
       tableBody.insertBefore(row, tableBody.firstChild);
-      if (tableBody.children.length > 20) tableBody.removeChild(tableBody.lastChild);
-    };
-
-    socket.onclose = () => {
-      statusBadge.textContent = "● Bağlantı Kesildi";
-      statusBadge.className = "badge badge-warn";
+      if (tableBody.children.length > 15) tableBody.removeChild(tableBody.lastChild);
     };
   </script>
 </body>

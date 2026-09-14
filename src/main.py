@@ -3,10 +3,17 @@ import json
 import random
 from datetime import datetime
 from typing import List
+from pydantic import BaseModel
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
+from src.card_calculator import CardCalculator
 
-app = FastAPI(title="Nedap AEOS Monitor")
+app = FastAPI(title="Nedap AEOS Monitor & Calculator")
+
+class CalcRequest(BaseModel):
+    calc_type: str
+    value: str
+    extra_val: str = ""
 
 class ConnectionManager:
     def __init__(self):
@@ -28,7 +35,6 @@ manager = ConnectionManager()
 async def simulate_card_events():
     event_types = ["Giris Basarili", "Tanimsiz Kart", "Yetkisiz Zorlama", "Kapi Acik Kaldi"]
     doors = ["Giris Turnike 1", "Ana Bina Bariyer", "Server Odasi", "Acil Cikis"]
-
     while True:
         await asyncio.sleep(4)
         event = {
@@ -51,6 +57,21 @@ async def websocket_endpoint(websocket: WebSocket):
             await websocket.receive_text()
     except WebSocketDisconnect:
         manager.disconnect(websocket)
+
+@app.post("/api/calculate")
+async def calculate_card(req: CalcRequest):
+    try:
+        if req.calc_type == "hex":
+            return CardCalculator.from_hex(req.value)
+        elif req.calc_type == "dec":
+            return CardCalculator.from_dec(int(req.value))
+        elif req.calc_type == "wiegand":
+            fc = int(req.value)
+            cn = int(req.extra_val)
+            return CardCalculator.from_wiegand(fc, cn)
+        return {"error": "Gecersiz tur"}
+    except Exception as e:
+        return {"error": str(e)}
 
 @app.get("/")
 async def get_dashboard():
